@@ -28,20 +28,6 @@ function main(context) {
     });
 
     /*
-    context.registerTest('fnvsanitycheck-fnv-test-mod-enabled', 'mod-enabled', (profileId, modId) => {
-        return Bluebird.resolve(automaticSingleOverrideCreation(context.api, modId))
-            .then(() => {
-                alert('returning true')
-                return true;
-            })
-            .catch(err => {
-                alert(`${err}`)
-                return false;
-            });
-    });
-    */
-
-    /*
     context.api.events.on('profile-did-change',
         (newProfileId => {
             executableCheckFNV(context.api);
@@ -52,8 +38,6 @@ function main(context) {
         }
         ));
         */
-
-
 
     return true;
 }
@@ -291,12 +275,8 @@ function automaticOverrideCreation(api) {
     if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
         return;
 
-    //const discovery = selectors.discoveryByGame(state, FNV_SHORTNAME);
-
-    //const dataPath = path.join(discovery.path, 'data')
     const staging = selectors.installPathForGame(state, FNV_SHORTNAME);
 
-    //await createOverrideFiles(dataPath);
     createOverrideFiles(staging, api);
 }
 
@@ -306,12 +286,8 @@ function automaticSingleOverrideCreation(api, modId) {
     if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
         return;
 
-    //const discovery = selectors.discoveryByGame(state, FNV_SHORTNAME);
-
-    //const dataPath = path.join(discovery.path, 'data')
     const staging = selectors.installPathForGame(state, FNV_SHORTNAME);
 
-    //await createOverrideFiles(dataPath);
     createSingleOverrideFiles(path.join(staging, modId));
 }
 
