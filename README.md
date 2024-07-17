@@ -12,10 +12,10 @@ Non-intrusive notification and can be dismissed permanently.
 * Enhanced default GECK configuration files if it doesn't exists (only for mod makers)
 
 
-Vortex Installation
+### Vortex Installation
 Open the extension page and click find more, search for the extension name and click install, you will be prompted to restart by vortex.
 
-Alternate Vortex Installation
+### Alternate Vortex Installation
 Manually download the mod, Open the extension page, drag and drop the zip file at the dedicated drop file box, you will be prompted to restart by vortex.
 
 Nexus link: https://www.nexusmods.com/site/mods/945
