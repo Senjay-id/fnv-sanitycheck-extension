@@ -1,8 +1,6 @@
 {
   "name": "Fallout New Vegas Sanity Check",
   "author": "Senjay",
-  "version": "1.0.0",
-  "description": "Adds numerous sanity checks and QOL addition for Fallout New Vegas",
-  "path": "C:\\Users\\Senjay\\AppData\\Roaming\\Vortex\\plugins\\FNV sanity check plugin.zip",
-  "bundled": false
+  "version": "1.0.2",
+  "description": "Adds numerous sanity checks and QOL addition for Fallout New Vegas"
 }
