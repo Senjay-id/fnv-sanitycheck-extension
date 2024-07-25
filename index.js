@@ -9,35 +9,22 @@ const FNV_TRANSLATION_PLUGIN = 'FalloutNV_lang.esp';
 
 function main(context) {
 
-    context.registerTest('fnvsanitycheck-fnv-test-gamemode-activated', 'gamemode-activated', () => {
-        return Bluebird.resolve(executableCheckFNV(context.api))
-            .then(() => {
-                translationPluginCheckFNV(context.api);
-                enhancedDefaultGECKParameter();
-                automaticOverrideCreation(context.api);
-                context.api.events.on('mod-enabled', (profileId, modId) => {
-                    automaticSingleOverrideCreation(context.api, modId);
-                }
-                );
-                return true;
-            })
-            .catch(err => {
-                log('warning', `Error executing tests: ${err}`);
-                return false;
-            });
-    });
-
-    /*
-    context.api.events.on('profile-did-change',
-        (newProfileId => {
+    context.registerTest('fnvsanitycheck-test-gamemode-activated', 'gamemode-activated', () => {
+        try {
             executableCheckFNV(context.api);
             translationPluginCheckFNV(context.api);
-            enhancedDefaultGECKParameter();
+            enhancedDefaultGECKParameter(context.api);
             automaticOverrideCreation(context.api);
-            //pluginLimitCheck(context.api)
+            context.api.events.on('mod-enabled', (profileId, modId) => {
+                automaticSingleOverrideCreation(context.api, modId);
+            });
+
+            return true;
+        } catch (err) {
+            log('warning', `Error executing tests: ${err}`);
+            return false;
         }
-        ));
-        */
+    });
 
     return true;
 }
@@ -149,9 +136,17 @@ function executableCheckFNV(api) {
     });
 }
 
-async function enhancedDefaultGECKParameter() {
-    const GECKConfigPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV', 'GECKCustom.ini')
+async function enhancedDefaultGECKParameter(api) {
+    const state = api.getState()
+    const currentGame = selectors.activeGameId(state)
+
+    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
+        return;
+
+    const GECKConfigPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV', 'GECKCustom.ini');
+    const GECKConfigDirPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV');
     try {
+        await fs.ensureDirWritableAsync(GECKConfigDirPath);
         await fs.statAsync(GECKConfigPath); // if it doesn't exist, create an enhanced configuration
     }
     catch (err) {
@@ -290,16 +285,6 @@ function automaticSingleOverrideCreation(api, modId) {
 
     createSingleOverrideFiles(path.join(staging, modId));
 }
-
-/*
-function pluginLimitCheck(api) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
-}
-*/
 
 module.exports = {
     default: main,
