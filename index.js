@@ -1,20 +1,29 @@
 const path = require('path');
 const { fs, log, selectors, util } = require('vortex-api');
 const crypto = require('crypto')
-const Bluebird = require('bluebird');
+const { exec } = require('child_process');
 
 const FNV_EXECUTABLE = 'FalloutNV.exe';
 const FNV_SHORTNAME = 'falloutnv';
 const FNV_TRANSLATION_PLUGIN = 'FalloutNV_lang.esp';
 
+let state;
+let discovery;
+
 function main(context) {
 
     context.registerTest('fnvsanitycheck-test-gamemode-activated', 'gamemode-activated', () => {
+        state = context.api.getState()
+        const currentGame = selectors.activeGameId(state)
+        if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
+            return true;
+        discovery = selectors.discoveryByGame(state, FNV_SHORTNAME);
         try {
             executableCheckFNV(context.api);
             translationPluginCheckFNV(context.api);
             enhancedDefaultGECKParameter(context.api);
             automaticOverrideCreation(context.api);
+            firstSetup(context.api);
             context.api.events.on('mod-enabled', (profileId, modId) => {
                 automaticSingleOverrideCreation(context.api, modId);
             });
@@ -30,18 +39,11 @@ function main(context) {
 }
 
 async function translationPluginCheckFNV(api) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
-    const discovery = selectors.discoveryByGame(state, FNV_SHORTNAME);
     const pluginPath = path.join(discovery.path, 'data', FNV_TRANSLATION_PLUGIN);
     try {
         await fs.statAsync(pluginPath);
         api.sendNotification({
-            id: 'sanitycheck-fnvtranslationplugin',
+            id: 'fnvsanitycheck-translationplugin',
             type: 'warning',
             message: 'Translation plugin present',
             allowSuppress: true,
@@ -49,9 +51,8 @@ async function translationPluginCheckFNV(api) {
                 {
                     title: 'More',
                     action: dismiss => {
-                        const t = api.translate;
                         api.showDialog('info', 'FalloutNV_lang.esp was found in the data folder', {
-                            bbcode: t(`This translation plugin directly edits thousands of records to change the language, `
+                            bbcode: api.translate(`This translation plugin directly edits thousands of records to change the language, `
                                 + `which will cause many incompatibilities with most mods.[br][/br][br][/br]Do you want to delete it? `)
                         }, [
                             {
@@ -66,7 +67,7 @@ async function translationPluginCheckFNV(api) {
                                 }
                             },
                             { label: 'No' },
-                            { label: 'Ignore', action: () => api.suppressNotification(`sanitycheck-fnvtranslationplugin`) }
+                            { label: 'Ignore', action: () => api.suppressNotification(`fnvsanitycheck-translationplugin`) }
                         ]);
                     },
                 },
@@ -74,18 +75,11 @@ async function translationPluginCheckFNV(api) {
         });
     }
     catch (err) {
-        return; //Exit early if the translation plugin doesn't exists
+        return; //Exit if the translation plugin doesn't exists
     }
 }
 
 function executableCheckFNV(api) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
-    const discovery = selectors.discoveryByGame(state, FNV_SHORTNAME);
     const executablePath = path.join(discovery.path, FNV_EXECUTABLE);
     const fileStream = fs.createReadStream(executablePath);
     const hashAlgorithm = 'md5';
@@ -93,18 +87,18 @@ function executableCheckFNV(api) {
     const patchedExecutableHashes = [
         '3e00e9397d71fae83af39129471024a7', //Patched GOG executable
         '27c096c5ad9657af4f39f764231521da', //Patched EpicGames executable
-        '50c70408a000acade2ed257c87cecbc2'  //Patched Steam executable
+        '50c70408a000acade2ed257c87cecbc2', //Patched Steam executable (Presumed US Version?)
+        'efee1ff64ea7f2b179d888e4a6c154c0'  //Patched Steam executable Russian Version
     ];
-    let executableHash;
 
     fileStream.on('data', (data) => {
         hash.update(data);
     });
     fileStream.on('end', () => {
-        executableHash = hash.digest('hex');
+        const executableHash = hash.digest('hex');
         if (!patchedExecutableHashes.includes(executableHash)) {
             api.sendNotification({
-                id: 'sanitycheck-fnvexecutable',
+                id: 'fnvsanitycheck-fnvexecutable',
                 type: 'warning',
                 message: 'Unpatched game executable',
                 allowSuppress: true,
@@ -112,18 +106,18 @@ function executableCheckFNV(api) {
                     {
                         title: 'More',
                         action: dismiss => {
-                            const t = api.translate;
                             api.showDialog('info', 'Unpatched game executable', {
-                                bbcode: t(`The game executable hasn't been patched with the 4GB Patcher. It won't `
+                                bbcode: api.translate(`The game executable hasn't been patched with the 4GB Patcher. It won't `
                                     + `load xNVSE and will be limited to 2GB of RAM[br][/br]You can download `
                                     + `and install the patch according to your platform from the link below:[br][/br][br][/br]`
                                     + `[url=https://www.nexusmods.com/newvegas/mods/62552]Steam/GOG Patcher[/url][br][/br][br][/br]`
                                     + `[url=https://www.nexusmods.com/newvegas/mods/81281]Epic Games Patcher[/url][br][/br][br][/br]`
-                                    + `After patching the game you should only launch the game from the game executable and not from `
-                                    + `New Vegas Script Extender under the tools to avoid loading the script extender twice`)
+                                    + `After patching the game you should only launch the game from the game executable at the vortex dashboard `
+                                    + `highlighted by the green circle and not from New Vegas Script Extender to avoid loading the script extender twice.`
+                                    + `[img]file:///${path.join(__dirname, 'assets', 'CorrectLaunch.png')}[/img]`)
                             }, [
-                                { label: 'Ok' },
-                                { label: 'Ignore', action: () => api.suppressNotification(`sanitycheck-fnvexecutable`) }
+                                { label: 'Close' },
+                                { label: 'Ignore', action: () => api.suppressNotification(`fnvsanitycheck-fnvexecutable`) }
                             ]);
                         },
                     },
@@ -136,13 +130,7 @@ function executableCheckFNV(api) {
     });
 }
 
-async function enhancedDefaultGECKParameter(api) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
+async function enhancedDefaultGECKParameter() {
     const GECKConfigPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV', 'GECKCustom.ini');
     const GECKConfigDirPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV');
     try {
@@ -174,9 +162,7 @@ async function createOverrideFiles(modPath, api) {
             }
 
             const modDirPath = path.join(modPath, dirent.name);
-            //alert(`modDirPath is ${modDirPath}`)
             try {
-                //alert(`trying to filter bsaFiles which is ${bsaFiles}`)
                 bsaFiles = (await fs.readdirAsync(modDirPath))
                     .filter(file => file.endsWith('.bsa'));
             } catch (e) {
@@ -198,12 +184,11 @@ async function createOverrideFiles(modPath, api) {
             }
         }
     } catch (error) {
-        alert(`Failed to create override files in ${modPath}: ${error.message}`);
+        log('warning', `Failed to create override files in ${modPath}: ${error.message}`);
     }
     if (overrideCreated) {
-
         api.sendNotification({
-            id: 'sanitycheck-fnvoverridedeploy',
+            id: 'fnvsanitycheck-overridedeploy',
             type: 'warning',
             message: 'Redeployment required',
             allowSuppress: true,
@@ -211,9 +196,8 @@ async function createOverrideFiles(modPath, api) {
                 {
                     title: 'More',
                     action: dismiss => {
-                        const t = api.translate;
                         api.showDialog('info', 'Redeployment required', {
-                            bbcode: t(`Vortex has automatically added .override files for all bsa files in the staging folder.[br][/br]`
+                            bbcode: api.translate(`Vortex has automatically added .override files for all bsa files in the staging folder.[br][/br]`
                                 + `Redeployment of mods is necessary to ensure the override files are added.[br][/br][br][/br]`
                                 + `BSA files can be made to override previous BSA files like newer Bethesda titles by creating an empty `
                                 + `text file with the same name as the BSA file and adding the extension .override to the filename. `
@@ -233,7 +217,7 @@ async function createOverrideFiles(modPath, api) {
                                 }
                             },
                             { label: 'Close' },
-                            { label: 'Ignore', action: () => api.suppressNotification(`sanitycheck-fnvoverridedeploy`) }
+                            { label: 'Ignore', action: () => api.suppressNotification(`fnvsanitycheck-overridedeploy`) }
                         ]);
                     },
                 },
@@ -260,30 +244,53 @@ async function createSingleOverrideFiles(modPath) {
         }
 
     } catch (error) {
-        log(`warn`, `Failed to create override files in ${modPath}: ${error}`);
+        log(`warn`, `Failed to create override files in ${modPath}. error message: ${error}`);
     }
 }
 
 function automaticOverrideCreation(api) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
     const staging = selectors.installPathForGame(state, FNV_SHORTNAME);
-
     createOverrideFiles(staging, api);
 }
 
 function automaticSingleOverrideCreation(api, modId) {
-    const state = api.getState()
-    const currentGame = selectors.activeGameId(state)
-    if (currentGame != FNV_SHORTNAME) //Early return if the managed game is not FNV
-        return;
-
     const staging = selectors.installPathForGame(state, FNV_SHORTNAME);
-
     createSingleOverrideFiles(path.join(staging, modId));
+}
+
+function firstSetup(api) {
+    api.sendNotification({
+        id: 'fnvsanitycheck-firstsetup',
+        type: 'info',
+        message: 'First time setup: Important notice',
+        allowSuppress: true,
+        actions: [
+            {
+                title: 'More',
+                action: dismiss => {
+                    api.showDialog('info', 'First time setup: Important notice', {
+                        bbcode: api.translate(`[size=4]1. Base Address Randomization. (Credits to Viva New Vegas)[/size][br][/br]`
+                            + `Base Address Randomization is a security feature in Windows that allows program's starting address to be randomized, `
+                            + `which will crash the game when using NVSE plugins or the 4GB Patch.[br][/br][br][/br]While the feature should be disabled by default, `
+                            + `it is still recommended to sanity check if it is disabled:[br][/br]`
+                            + `[list]
+                                [*] Open [b]Windows Security[/b] from your Start Menu.
+                                [*] Click on [b]App & browser control[/b] in the left sidebar.
+                                [*] Click on [b]Exploit protection settings[/b] under [b]Exploit protection[/b].
+                                [*] Ensure [b]Force randomization for images (Mandatory ASLR)[/b] is set to [b]Use default (Off)[/b].
+                                [/list][br][/br]`
+                            + `[size=4]2. Outdated AMD GPU Driver Crash (only applies to [b]AMD GPU Users[/b])[/size][br][/br]`
+                            + `The GPU driver version from [b]24.1.1[/b] up to [b]24.5.1[/b] may fail to compile the shader and [b]crash the game[/b]. The issue is stated `
+                            + `on the official AMD website [url=https://www.amd.com/en/resources/support-articles/release-notes/RN-RAD-WIN-24-4-1.html]here[/url].[br][/br][br][/br]`
+                            + `Make sure your driver version is updated.`)
+                    }, [
+                        { label: 'Close' },
+                        { label: 'Close and forget', action: () => api.suppressNotification(`fnvsanitycheck-firstsetup`) }
+                    ]);
+                },
+            },
+        ],
+    });
 }
 
 module.exports = {
