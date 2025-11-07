@@ -7,9 +7,13 @@ Non-intrusive notification and can be dismissed permanently.
 
 * Checks if the executable files is not 4GB patched and send a notification linking the patcher
 
-* Automatic creation of .override files for BSA files so that it can override previous BSA files
+* Checks for legacy NVSE from the silverlock website
+
+* Automatic creation for .override files for BSA files so that it can override previous BSA files
 
 * Enhanced default GECK configuration files if it doesn't exists (only for mod makers)
+
+* Important notice for first time setup regarding Base Address Randomization and outdated AMD GPU driver for New Vegas
 
 
 ### Vortex Installation

@@ -1,6 +1,6 @@
 {
-  "name": "Fallout New Vegas Sanity Check",
+  "name": "Fallout New Vegas Sanity Checks",
   "author": "Senjay",
-  "version": "1.0.2",
-  "description": "Adds numerous sanity checks and QOL addition for Fallout New Vegas"
+  "version": "1.0.11",
+  "description": "Vortex extension sanity checks for Fallout New Vegas that handles common problems and quality of life addition"
 }

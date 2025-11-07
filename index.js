@@ -6,6 +6,7 @@ const { exec } = require('child_process');
 const FNV_EXECUTABLE = 'FalloutNV.exe';
 const FNV_SHORTNAME = 'falloutnv';
 const FNV_TRANSLATION_PLUGIN = 'FalloutNV_lang.esp';
+const NVSE_Executable = 'nvse_loader.exe';
 
 let state;
 let discovery;
@@ -23,6 +24,7 @@ function main(context) {
             translationPluginCheckFNV(context.api);
             enhancedDefaultGECKParameter(context.api);
             automaticOverrideCreation(context.api);
+            legacyNVSECheck(context.api);
             firstSetup(context.api);
             context.api.events.on('mod-enabled', (profileId, modId) => {
                 automaticSingleOverrideCreation(context.api, modId);
@@ -130,23 +132,83 @@ function executableCheckFNV(api) {
     });
 }
 
-async function enhancedDefaultGECKParameter() {
-    const GECKConfigPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV', 'GECKCustom.ini');
+async function legacyNVSECheck(api) {
+    const nvseExecutable = path.join(discovery.path, NVSE_Executable);
+    // Check if the executable exists
+    try {
+        await fs.statAsync(nvseExecutable);
+        const fileStream = fs.createReadStream(nvseExecutable);
+        const hashAlgorithm = 'md5';
+        const hash = crypto.createHash(hashAlgorithm);
+        const legacyExecutableHash = '23bd7b28b6022c23ff1fb2443467ad99';
+
+        fileStream.on('data', (data) => {
+            hash.update(data);
+        });
+        fileStream.on('end', () => {
+            const executableHash = hash.digest('hex');
+            if (legacyExecutableHash == executableHash) {
+                api.sendNotification({
+                    id: 'fnvsanitycheck-legacynvsecheck',
+                    type: 'warning',
+                    message: 'Old NVSE version detected',
+                    allowSuppress: true,
+                    actions: [
+                        {
+                            title: 'More',
+                            action: dismiss => {
+                                api.showDialog('info', 'Old NVSE version detected', {
+                                    bbcode: api.translate(
+                                        `Vortex has detected that your using an old legacy version of the NVSE hosted on the silverlock website `
+                                        + `which might cause issues with the current plugin mods.[br][/br][br][/br]`
+                                        + `A newer version of NVSE can be found [url=https://www.nexusmods.com/newvegas/mods/67883]here[/url]`)
+                                }, [
+                                    { label: 'Close' },
+                                    { label: 'Ignore', action: () => api.suppressNotification(`fnvsanitycheck-legacynvsecheck`) }
+                                ]);
+                            },
+                        },
+                    ],
+                });
+            }
+        });
+        fileStream.on('error', (err) => {
+            log(`error`, `Error reading executable file: ${err}`);
+        });
+    }
+    catch (dummy) {
+        // Do nothing if it doesn't exists
+    }
+}
+
+async function enhancedDefaultGECKParameter(api) {
     const GECKConfigDirPath = path.join(util.getVortexPath('documents'), 'My Games', 'FalloutNV');
+    const GECKConfigPath = path.join(GECKConfigDirPath, 'GECKCustom.ini');
+
     try {
         await fs.ensureDirWritableAsync(GECKConfigDirPath);
-        await fs.statAsync(GECKConfigPath); // if it doesn't exist, create an enhanced configuration
-    }
-    catch (err) {
-        fs.writeFileAsync(GECKConfigPath, //The absent of whitespace is intended
-            `[General]\n`
-            + `bUseMultibounds=0\n`
-            + `bAllowMultipleMasterLoads=1\n`
-            + `bAllowMultipleEditors=1\n`
-            + `[Localization]\n`
-            + `iExtendedTopicLength=255\n`
-            + `bAllowExtendedText=1`
-        )
+        await fs.statAsync(GECKConfigPath); // Check if the file exists
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            api.showErrorNotification('Failed to access GECKConfig file', err);
+            log('error', `Unexpected error accessing GECKConfig file: ${err.message}`);
+            return;
+        }
+
+        try {
+            await fs.writeFileAsync(GECKConfigPath,
+                `[General]\n`
+                + `bUseMultibounds=0\n`
+                + `bAllowMultipleMasterLoads=1\n`
+                + `bAllowMultipleEditors=1\n`
+                + `[Localization]\n`
+                + `iExtendedTopicLength=255\n`
+                + `bAllowExtendedText=1`
+            );
+        } catch (writeErr) {
+            api.showErrorNotification('Failed to write GECKConfig file', writeErr);
+            log('error', `Error writing GECKConfig file: ${writeErr.message}`);
+        }
     }
 }
 
